@@ -53,7 +53,16 @@ if sys.platform == 'win32':
         sys.stderr.reconfigure(encoding='utf-8')
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+# Enable CORS with specific origin
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://23.82.99.219:9090"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Type"],
+        "supports_credentials": True
+    }
+})
 
 # 初始化API密钥验证
 init_api_auth(app)
