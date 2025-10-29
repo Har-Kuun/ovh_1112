@@ -59,8 +59,26 @@ export const CACHE_EXPIRY = 2 * 60 * 60 * 1000; // 2小时
 
 /**
  * 后端API地址
+ * 优先级：环境变量 > 自动检测 > 默认localhost
  */
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+export const API_URL = (() => {
+  // 1. 优先使用环境变量（.env.local 或 .env.production）
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // 2. 自动检测当前访问的域名/IP
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  
+  // 3. localhost 特殊处理
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:5000/api';
+  }
+  
+  // 4. 其他情况（服务器IP或域名），使用当前地址的 5000 端口
+  return `${protocol}//${hostname}:5000/api`;
+})();
 
 /**
  * API请求重试次数
