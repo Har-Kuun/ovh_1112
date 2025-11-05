@@ -98,6 +98,63 @@ interface HardwareRaidProfile {
   description: string;
 }
 
+interface NetworkSpecs {
+  bandwidth: {
+    InternetToOvh?: { unit: string; value: number };
+    OvhToInternet?: { unit: string; value: number };
+    OvhToOvh?: { unit: string; value: number };
+    type?: string;
+  };
+  connection?: {
+    unit: string;
+    value: number;
+  };
+  ola?: {
+    available: boolean;
+    availableModes?: Array<{
+      default: boolean;
+      interfaces: Array<{
+        aggregation: boolean;
+        count: number;
+        type: string;
+      }>;
+      name: string;
+    }>;
+    supportedModes?: string[];
+  };
+  routing?: {
+    ipv4?: {
+      gateway: string;
+      ip: string;
+      network: string;
+    };
+    ipv6?: {
+      gateway: string;
+      ip: string;
+      network: string;
+    };
+  };
+  switching?: {
+    name: string;
+  };
+  traffic?: {
+    inputQuotaSize?: { unit: string; value: number };
+    inputQuotaUsed?: { unit: string; value: number };
+    isThrottled?: boolean;
+    outputQuotaSize?: { unit: string; value: number };
+    outputQuotaUsed?: { unit: string; value: number };
+    resetQuotaDate?: string;
+  };
+  vmac?: {
+    quota: number;
+    supported: boolean;
+  };
+  vrack?: {
+    bandwidth?: { unit: string; value: number };
+    type?: string;
+  };
+}
+
 interface CustomPartition {
   mountpoint: string;
   filesystem: string;
@@ -257,6 +314,11 @@ const ServerControlPage: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<ContactChangeRequest | null>(null);
   const [tokenAction, setTokenAction] = useState<'accept' | 'refuse' | null>(null);
   const [token, setToken] = useState('');
+
+  // 网络规格功能
+  const [networkSpecs, setNetworkSpecs] = useState<NetworkSpecs | null>(null);
+  const [loadingNetworkSpecs, setLoadingNetworkSpecs] = useState(false);
+  const [showNetworkSpecsDialog, setShowNetworkSpecsDialog] = useState(false);
 
   // 加载 BIOS 设置
   const fetchBiosSettings = async () => {
@@ -1101,6 +1163,43 @@ const ServerControlPage: React.FC = () => {
     }
   };
 
+  // 获取网络规格
+  const fetchNetworkSpecs = async (serviceName: string) => {
+    setLoadingNetworkSpecs(true);
+    try {
+      const response = await api.get(`/server-control/${serviceName}/network-specs`);
+      if (response.data.success) {
+        setNetworkSpecs(response.data.network);
+        showToast({ 
+          type: 'success', 
+          title: '网络规格已加载' 
+        });
+      } else {
+        showToast({ 
+          type: 'error', 
+          title: '获取网络规格失败',
+          message: response.data.error || '未知错误'
+        });
+      }
+    } catch (error: any) {
+      console.error('获取网络规格失败:', error);
+      showToast({ 
+        type: 'error', 
+        title: '获取网络规格失败',
+        message: error.message || '网络错误'
+      });
+    } finally {
+      setLoadingNetworkSpecs(false);
+    }
+  };
+
+  // 打开网络规格对话框
+  const handleOpenNetworkSpecs = (server: ServerInfo) => {
+    setSelectedServer(server);
+    setShowNetworkSpecsDialog(true);
+    fetchNetworkSpecs(server.serviceName);
+  };
+
   // 变更联系人
   const handleChangeContact = async () => {
     if (!selectedServer) return;
@@ -1724,6 +1823,13 @@ const ServerControlPage: React.FC = () => {
                     className="px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 hover:bg-green-500/20 transition-all flex items-center gap-2 justify-center">
                     <Mail className="w-4 h-4" />
                     变更联系人
+                  </button>
+                  <button
+                    onClick={() => handleOpenNetworkSpecs(selectedServer)}
+                    disabled={loadingNetworkSpecs}
+                    className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400 hover:bg-cyan-500/20 transition-all flex items-center gap-2 justify-center disabled:opacity-50">
+                    <Wifi className="w-4 h-4" />
+                    {loadingNetworkSpecs ? '加载中...' : '网络规格'}
                   </button>
                 </div>
               </div>
@@ -4245,6 +4351,411 @@ const ServerControlPage: React.FC = () => {
                       确定
                     </button>
                   </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* 网络规格对话框 */}
+      {createPortal(
+        <AnimatePresence>
+          {showNetworkSpecsDialog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              {/* 背景遮罩 */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowNetworkSpecsDialog(false)}
+                className="absolute inset-0 bg-black/70 backdrop-blur-md"
+              />
+
+              {/* 对话框内容 */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 20 }}
+                className="relative bg-cyber-bg/95 backdrop-blur-xl border border-cyan-500/30 rounded-xl shadow-2xl shadow-cyan-500/10 max-w-6xl w-full max-h-[88vh] overflow-hidden">
+                
+                {/* 顶部装饰线 */}
+                <div className="h-0.5 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500" />
+                
+                {/* 标题栏 */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 to-transparent">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-lg border border-cyan-500/30">
+                      <Wifi className="w-4 h-4 text-cyan-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-cyber-text flex items-center gap-1.5">
+                        网络规格
+                        {loadingNetworkSpecs && (
+                          <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" />
+                        )}
+                      </h3>
+                      <p className="text-[10px] text-cyber-muted/80 leading-none">
+                        {selectedServer?.name} · {selectedServer?.serviceName}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => selectedServer && fetchNetworkSpecs(selectedServer.serviceName)}
+                      disabled={loadingNetworkSpecs}
+                      className="p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-md transition-all disabled:opacity-50"
+                      title="刷新">
+                      <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${loadingNetworkSpecs ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button
+                      onClick={() => setShowNetworkSpecsDialog(false)}
+                      className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-md transition-all group"
+                      title="关闭">
+                      <X className="w-3.5 h-3.5 text-red-400 group-hover:text-red-300" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 内容区域 */}
+                <div className="p-4 overflow-y-auto max-h-[calc(88vh-48px)] custom-scrollbar">
+                  {loadingNetworkSpecs ? (
+                    <div className="flex items-center justify-center py-12">
+                      <RefreshCw className="w-8 h-8 animate-spin text-cyber-accent" />
+                    </div>
+                  ) : networkSpecs ? (
+                    <div className="space-y-3.5">
+                      {/* 带宽类型提示 */}
+                      {networkSpecs.bandwidth?.type && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-500/10 to-cyan-500/10 border border-green-500/30 rounded-lg">
+                          <div className="p-1 bg-green-500/10 rounded">
+                            <BarChart3 className="w-3.5 h-3.5 text-green-400" />
+                          </div>
+                          <span className="text-xs text-cyber-muted">带宽类型:</span>
+                          <span className="text-sm font-semibold text-green-400 capitalize">
+                            {networkSpecs.bandwidth.type === 'improved' ? '升级带宽' : 
+                             networkSpecs.bandwidth.type === 'included' ? '标准带宽' : 
+                             networkSpecs.bandwidth.type}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 核心指标卡片组 */}
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        {/* 出站带宽 */}
+                        {networkSpecs.bandwidth?.OvhToInternet && (
+                          <div className="bg-gradient-to-br from-cyan-500/5 to-blue-500/5 hover:from-cyan-500/10 hover:to-blue-500/10 border border-cyan-500/30 rounded-lg p-3.5 transition-all">
+                            <div className="flex items-center justify-between mb-2.5">
+                              <div className="p-1.5 bg-cyan-500/10 rounded">
+                                <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
+                              </div>
+                              <span className="text-xs text-cyan-400/80 font-medium">出站</span>
+                            </div>
+                            <div className="text-xl font-bold text-cyan-400 leading-none mb-1.5">
+                              {networkSpecs.bandwidth.OvhToInternet.value}
+                              <span className="text-xs ml-1 text-cyan-400/70">{networkSpecs.bandwidth.OvhToInternet.unit}</span>
+                            </div>
+                            <div className="text-xs text-cyber-muted">OVH → Internet</div>
+                          </div>
+                        )}
+                        
+                        {/* 入站带宽 */}
+                        {networkSpecs.bandwidth?.InternetToOvh && (
+                          <div className="bg-gradient-to-br from-blue-500/5 to-indigo-500/5 hover:from-blue-500/10 hover:to-indigo-500/10 border border-blue-500/30 rounded-lg p-3.5 transition-all">
+                            <div className="flex items-center justify-between mb-2.5">
+                              <div className="p-1.5 bg-blue-500/10 rounded">
+                                <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+                              </div>
+                              <span className="text-xs text-blue-400/80 font-medium">入站</span>
+                            </div>
+                            <div className="text-xl font-bold text-blue-400 leading-none mb-1.5">
+                              {networkSpecs.bandwidth.InternetToOvh.value}
+                              <span className="text-xs ml-1 text-blue-400/70">{networkSpecs.bandwidth.InternetToOvh.unit}</span>
+                            </div>
+                            <div className="text-xs text-cyber-muted">Internet → OVH</div>
+                          </div>
+                        )}
+                        
+                        {/* 连接速度 */}
+                        {networkSpecs.connection && (
+                          <div className="bg-gradient-to-br from-purple-500/5 to-pink-500/5 hover:from-purple-500/10 hover:to-pink-500/10 border border-purple-500/30 rounded-lg p-3.5 transition-all">
+                            <div className="flex items-center justify-between mb-2.5">
+                              <div className="p-1.5 bg-purple-500/10 rounded">
+                                <Wifi className="w-3.5 h-3.5 text-purple-400" />
+                              </div>
+                              <span className="text-xs text-purple-400/80 font-medium">端口</span>
+                            </div>
+                            <div className="text-xl font-bold text-purple-400 leading-none mb-1.5">
+                              {networkSpecs.connection.value}
+                              <span className="text-xs ml-1 text-purple-400/70">{networkSpecs.connection.unit}</span>
+                            </div>
+                            <div className="text-xs text-cyber-muted">连接速度</div>
+                          </div>
+                        )}
+                        
+                        {/* 内网带宽 */}
+                        {networkSpecs.bandwidth?.OvhToOvh && (
+                          <div className="bg-gradient-to-br from-pink-500/5 to-rose-500/5 hover:from-pink-500/10 hover:to-rose-500/10 border border-pink-500/30 rounded-lg p-3.5 transition-all">
+                            <div className="flex items-center justify-between mb-2.5">
+                              <div className="p-1.5 bg-pink-500/10 rounded">
+                                <Activity className="w-3.5 h-3.5 text-pink-400" />
+                              </div>
+                              <span className="text-xs text-pink-400/80 font-medium">内网</span>
+                            </div>
+                            <div className="text-xl font-bold text-pink-400 leading-none mb-1.5">
+                              {networkSpecs.bandwidth.OvhToOvh.value}
+                              <span className="text-xs ml-1 text-pink-400/70">{networkSpecs.bandwidth.OvhToOvh.unit}</span>
+                            </div>
+                            <div className="text-xs text-cyber-muted">OVH 内部</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 路由配置 */}
+                      {networkSpecs.routing && (
+                        <div className="bg-gradient-to-br from-green-500/5 to-cyan-500/5 border border-green-500/30 rounded-lg p-3.5">
+                          <h4 className="text-sm font-semibold text-green-400 mb-3 flex items-center gap-2">
+                            <div className="p-1 bg-green-500/10 rounded">
+                              <Wifi className="w-3.5 h-3.5" />
+                            </div>
+                            路由配置
+                          </h4>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            {networkSpecs.routing.ipv4 && (
+                              <div className="bg-cyber-bg/30 backdrop-blur-sm border border-green-500/20 rounded-lg p-3">
+                                <div className="text-xs font-medium text-green-400 mb-2.5 flex items-center gap-1.5">
+                                  <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                                  IPv4
+                                </div>
+                                <div className="space-y-2 font-mono text-xs">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-cyber-muted">IP地址</span>
+                                    <span className="text-cyber-text font-medium">{networkSpecs.routing.ipv4.ip}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-cyber-muted">网关</span>
+                                    <span className="text-cyber-text font-medium">{networkSpecs.routing.ipv4.gateway}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-cyber-muted">网络</span>
+                                    <span className="text-cyber-text font-medium">{networkSpecs.routing.ipv4.network}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {networkSpecs.routing.ipv6 && (
+                              <div className="bg-cyber-bg/30 backdrop-blur-sm border border-cyan-500/20 rounded-lg p-3">
+                                <div className="text-xs font-medium text-cyan-400 mb-2.5 flex items-center gap-1.5">
+                                  <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
+                                  IPv6
+                                </div>
+                                <div className="space-y-2 font-mono text-xs">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-cyber-muted">IP地址</span>
+                                    <span className="text-cyber-text break-all leading-relaxed">{networkSpecs.routing.ipv6.ip}</span>
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-cyber-muted">网关</span>
+                                    <span className="text-cyber-text break-all leading-relaxed">{networkSpecs.routing.ipv6.gateway}</span>
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-cyber-muted">网络</span>
+                                    <span className="text-cyber-text break-all leading-relaxed">{networkSpecs.routing.ipv6.network}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 流量配额 */}
+                      {networkSpecs.traffic && (
+                        <div className="bg-gradient-to-br from-orange-500/5 to-red-500/5 border border-orange-500/30 rounded-lg p-3.5">
+                          <h4 className="text-sm font-semibold text-orange-400 mb-3 flex items-center gap-2">
+                            <div className="p-1 bg-orange-500/10 rounded">
+                              <BarChart3 className="w-3.5 h-3.5" />
+                            </div>
+                            流量配额
+                          </h4>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+                            {networkSpecs.traffic.inputQuotaSize && (
+                              <div className="bg-cyber-bg/30 backdrop-blur-sm border border-orange-500/20 rounded-lg p-3">
+                                <div className="text-xs text-cyber-muted mb-2">入站流量</div>
+                                <div className="flex items-end justify-between">
+                                  <div>
+                                    <div className="text-xl font-bold text-orange-400 leading-none">
+                                      {networkSpecs.traffic.inputQuotaSize.value}
+                                    </div>
+                                    <div className="text-xs text-orange-400/70 mt-0.5">{networkSpecs.traffic.inputQuotaSize.unit}</div>
+                                  </div>
+                                  {networkSpecs.traffic.inputQuotaUsed && (
+                                    <div className="text-right">
+                                      <div className="text-base font-semibold text-cyber-text leading-none">
+                                        {networkSpecs.traffic.inputQuotaUsed.value}
+                                      </div>
+                                      <div className="text-xs text-cyber-muted mt-0.5">已使用</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {networkSpecs.traffic.outputQuotaSize && (
+                              <div className="bg-cyber-bg/30 backdrop-blur-sm border border-red-500/20 rounded-lg p-3">
+                                <div className="text-xs text-cyber-muted mb-2">出站流量</div>
+                                <div className="flex items-end justify-between">
+                                  <div>
+                                    <div className="text-xl font-bold text-red-400 leading-none">
+                                      {networkSpecs.traffic.outputQuotaSize.value}
+                                    </div>
+                                    <div className="text-xs text-red-400/70 mt-0.5">{networkSpecs.traffic.outputQuotaSize.unit}</div>
+                                  </div>
+                                  {networkSpecs.traffic.outputQuotaUsed && (
+                                    <div className="text-right">
+                                      <div className="text-base font-semibold text-cyber-text leading-none">
+                                        {networkSpecs.traffic.outputQuotaUsed.value}
+                                      </div>
+                                      <div className="text-xs text-cyber-muted mt-0.5">已使用</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-4 text-xs">
+                            {networkSpecs.traffic.isThrottled !== undefined && (
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${networkSpecs.traffic.isThrottled ? 'bg-red-400' : 'bg-green-400'}`}></div>
+                                <span className="text-cyber-muted">状态:</span>
+                                <span className={networkSpecs.traffic.isThrottled ? "text-red-400 font-medium" : "text-green-400 font-medium"}>
+                                  {networkSpecs.traffic.isThrottled ? '已限流' : '正常'}
+                                </span>
+                              </div>
+                            )}
+                            {networkSpecs.traffic.resetQuotaDate && (
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3.5 h-3.5 text-cyber-muted/70" />
+                                <span className="text-cyber-muted">重置:</span>
+                                <span className="text-cyber-text font-medium">{new Date(networkSpecs.traffic.resetQuotaDate).toLocaleDateString('zh-CN')}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 高级功能 */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {/* OLA */}
+                        {networkSpecs.ola && (
+                          <div className="bg-gradient-to-br from-purple-500/5 to-pink-500/5 border border-purple-500/30 rounded-lg p-3.5">
+                            <h4 className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
+                              <div className="p-1 bg-purple-500/10 rounded">
+                                <Activity className="w-3.5 h-3.5" />
+                              </div>
+                              OVH Link Aggregation
+                            </h4>
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className={`w-2 h-2 rounded-full ${networkSpecs.ola.available ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                              <span className="text-xs text-cyber-muted">状态:</span>
+                              <span className={`text-xs font-medium ${networkSpecs.ola.available ? 'text-green-400' : 'text-red-400'}`}>
+                                {networkSpecs.ola.available ? '支持' : '不支持'}
+                              </span>
+                            </div>
+                            {networkSpecs.ola.supportedModes && networkSpecs.ola.supportedModes.length > 0 && (
+                              <div>
+                                <div className="text-xs text-cyber-muted mb-2">支持模式</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {networkSpecs.ola.supportedModes.map((mode, idx) => (
+                                    <span key={idx} className="px-2 py-1 bg-purple-500/20 border border-purple-500/40 rounded text-purple-300 text-xs font-mono">
+                                      {mode}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* vRack */}
+                        {networkSpecs.vrack && (
+                          <div className="bg-gradient-to-br from-indigo-500/5 to-purple-500/5 border border-indigo-500/30 rounded-lg p-3.5">
+                            <h4 className="text-sm font-semibold text-indigo-400 mb-3 flex items-center gap-2">
+                              <div className="p-1 bg-indigo-500/10 rounded">
+                                <Server className="w-3.5 h-3.5" />
+                              </div>
+                              vRack 虚拟机架
+                            </h4>
+                            <div className="space-y-2.5">
+                              {networkSpecs.vrack.bandwidth && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-cyber-muted">带宽</span>
+                                  <span className="text-sm font-semibold text-indigo-400">
+                                    {networkSpecs.vrack.bandwidth.value} {networkSpecs.vrack.bandwidth.unit}
+                                  </span>
+                                </div>
+                              )}
+                              {networkSpecs.vrack.type && (
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs text-cyber-muted">类型</span>
+                                  <span className="text-sm font-semibold text-purple-400 capitalize">
+                                    {networkSpecs.vrack.type}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* VMAC */}
+                        {networkSpecs.vmac && (
+                          <div className="bg-gradient-to-br from-pink-500/5 to-rose-500/5 border border-pink-500/30 rounded-lg p-3.5">
+                            <h4 className="text-sm font-semibold text-pink-400 mb-3 flex items-center gap-2">
+                              <div className="p-1 bg-pink-500/10 rounded">
+                                <Cpu className="w-3.5 h-3.5" />
+                              </div>
+                              虚拟MAC地址
+                            </h4>
+                            <div className="space-y-2.5">
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-cyber-muted">支持</span>
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${networkSpecs.vmac.supported ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                                  <span className={`text-sm font-medium ${networkSpecs.vmac.supported ? 'text-green-400' : 'text-red-400'}`}>
+                                    {networkSpecs.vmac.supported ? '是' : '否'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-cyber-muted">配额</span>
+                                <span className="text-sm font-semibold text-pink-400">{networkSpecs.vmac.quota}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 交换机 */}
+                        {networkSpecs.switching?.name && (
+                          <div className="bg-gradient-to-br from-cyan-500/5 to-blue-500/5 border border-cyan-500/30 rounded-lg p-3.5">
+                            <h4 className="text-sm font-semibold text-cyan-400 mb-3 flex items-center gap-2">
+                              <div className="p-1 bg-cyan-500/10 rounded">
+                                <Wifi className="w-3.5 h-3.5" />
+                              </div>
+                              交换机信息
+                            </h4>
+                            <div className="font-mono text-xs text-cyber-text bg-cyber-bg/30 backdrop-blur-sm border border-cyan-500/20 rounded p-2.5 break-all leading-relaxed">
+                              {networkSpecs.switching.name}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-cyber-muted">
+                      <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p className="text-sm">无法加载网络规格信息</p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </div>
